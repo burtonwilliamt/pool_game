@@ -100,7 +100,7 @@ function isMoving(obj) {
 }
 
 function createBall(x, y, color) {
-  const ball = drawCircle(x, y, 32, color);
+  const ball = drawCircle(x, y, 16, color);
   setupObjPhysics(ball);
   ball.tableDrag = 0.02;
   return ball;
@@ -123,11 +123,8 @@ function updateObjPhysics(obj) {
 
   // Expanding for u = sqrt(obj.vx^2 + obj.vy^2):
   // F_d = tableDrag * sqrt(obj.vx^2 + obj.vy^2)^2
-  // Simplify the sqrt(...)^2:
-  // F_d = tableDrag * (obj.vx^2 + obj.vy^2)
-
   // actually, it seems to handle better when it's just proportional to speed, remove outer pow(u, 2)
-  const totalDrag = obj.tableDrag * Math.pow(Math.sqrt((Math.pow(obj.vx, 2) + Math.pow(obj.vy, 2))), 1.0);
+  const totalDrag = obj.tableDrag * Math.sqrt((Math.pow(obj.vx, 2) + Math.pow(obj.vy, 2)));
 
   // Then we need to break F_d into x and y components:
   // F_d_x = cos(theta) * totalDrag
@@ -157,7 +154,7 @@ function tableSetup() {
 }
 
 function createCue() {
-  state.cue = drawRectangle(0, 0, 300, 20, "0xBA8C63");
+  state.cue = drawRectangle(0, 0, 400, 10, "0xBA8C63");
   state.cue.pivot.set(0, state.cue.height / 2);
   setupObjPhysics(state.cue);
   app.stage.addChild(state.cue);
@@ -167,7 +164,6 @@ function cueBallCueAngle() {
   const relx = state.cueBall.x - state.cue.x,
     rely = state.cueBall.y - state.cue.y;
   return Math.atan2(rely, relx) + Math.PI;
-
 }
 
 function aimCue() {
@@ -177,7 +173,8 @@ function aimCue() {
 
 function startCuePush() {
   const angle = cueBallCueAngle(),
-    acceleration = 0.25;
+    distanceFromBall = distance(state.cueBall.x, state.cueBall.y, state.cue.x, state.cue.y),
+    acceleration = distanceFromBall/100;
   state.cue.dvx = -Math.cos(angle)*acceleration;
   state.cue.vx = 0;
   state.cue.dvy = -Math.sin(angle)*acceleration;
@@ -188,10 +185,17 @@ function updateCuePhysics() {
   if (state.cue === null) {
     return;
   }
-  const distanceFromBall = distance(state.cueBall.x, state.cueBall.y, state.cue.x, state.cue.y);
-  if (distanceFromBall < state.cueBall.width/2) {
+  const angle = cueBallCueAngle(),
+    contactX = Math.cos(angle) * (state.cueBall.width/2) + state.cueBall.x,
+    contactY = Math.sin(angle) * (state.cueBall.width/2) + state.cueBall.y,
+    distanceToContact = distance(state.cue.x, state.cue.y, contactX, contactY),
+    velocity = Math.sqrt(Math.pow(state.cue.vx, 2) + Math.pow(state.cue.vy, 2));
+
+  if (velocity >= distanceToContact) {
     state.cueBall.vx = state.cue.vx;
     state.cueBall.vy = state.cue.vy;
+    state.cue.x = contactX;
+    state.cue.y = contactY;
     stopMoving(state.cue);
     return;
   }
