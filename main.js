@@ -38,6 +38,50 @@ function distance(x1, y1, x2, y2) {
   return Math.sqrt(Math.pow((x1 - x2), 2) + Math.pow((y1 - y2), 2));
 }
 
+function setupObjPhysics(obj) {
+  obj.vAngle = 0;
+  obj.v = 0;
+  obj.dv = 0;
+  obj.tableDrag = 0;
+}
+
+function updateObjPhysics(obj) {
+  // drag equation:
+  // F_d = 1/2 * p * u^2 * c_d * A
+  // F_d = Drag force
+  // p = mass density
+  // u = flow velocity
+  // c_d = drag coefficient
+  // A = reference area
+
+  // We're just going to combine all those constants
+  // 0.5 * p * c_d * A = tableDrag
+
+  // Our simplified equation:
+  // F_d = tableDrag * u^2
+
+  // actually, it seems to handle better when it's just proportional to speed
+  // F_d = tableDrag * u
+  const drag = obj.tableDrag * obj.v;
+
+  obj.v += obj.dv - drag;
+  if (obj.dv === 0 && Math.abs(obj.v) < 0.1) {
+    obj.v = 0;
+  }
+  obj.x += obj.v * Math.cos(obj.vAngle);
+  obj.y += obj.v * Math.sin(obj.vAngle);
+}
+
+function stopMoving(obj) {
+  obj.v = 0;
+  obj.dv = 0;
+}
+
+function isMoving(obj) {
+  return (obj.v !== 0 || obj.dv !== 0);
+}
+
+
 
 // ***************Graphics functions******************
 function graphicsSetup() {
@@ -80,25 +124,6 @@ function drawSprite(x, y, width, height, imagePath) {
   return sprt;
 }
 
-function setupObjPhysics(obj) {
-  obj.vx = 0;
-  obj.vy = 0;
-  obj.dvx = 0;
-  obj.dvy = 0;
-  obj.tableDrag = 0;
-}
-
-function stopMoving(obj) {
-  obj.vx = 0;
-  obj.vy = 0;
-  obj.dvx = 0;
-  obj.dvy = 0;
-}
-
-function isMoving(obj) {
-  return (obj.vx !== 0 || obj.vy !== 0 || obj.dvx !== 0 || obj.dvy !== 0);
-}
-
 function createBall(x, y, color) {
   const ball = drawCircle(x, y, 16, color);
   setupObjPhysics(ball);
@@ -106,44 +131,6 @@ function createBall(x, y, color) {
   return ball;
 }
 
-function updateObjPhysics(obj) {
-  // drag equation:
-  // F_d = 1/2 * p * u^2 * c_d * A
-  // F_d = Drag force
-  // p = mass density
-  // u = flow velocity
-  // c_d = drag coefficient
-  // A = reference area
-
-  // We're just going to combine all those constants
-  // 0.5 * p * c_d * A = tableDrag
-
-  // Our simplified equation:
-  // F_d = tableDrag * u^2
-
-  // Expanding for u = sqrt(obj.vx^2 + obj.vy^2):
-  // F_d = tableDrag * sqrt(obj.vx^2 + obj.vy^2)^2
-  // actually, it seems to handle better when it's just proportional to speed, remove outer pow(u, 2)
-  const totalDrag = obj.tableDrag * Math.sqrt((Math.pow(obj.vx, 2) + Math.pow(obj.vy, 2)));
-
-  // Then we need to break F_d into x and y components:
-  // F_d_x = cos(theta) * totalDrag
-  // F_d_y = sin(theta) * totalDrag
-  const velocityDirection = Math.atan2(obj.vy, obj.vx),
-    dragX = - Math.cos(velocityDirection) * totalDrag,
-    dragY = - Math.sin(velocityDirection) * totalDrag;
-
-  obj.vx += obj.dvx + dragX;
-  obj.vy += obj.dvy + dragY;
-  if (obj.dvx === 0 && Math.abs(obj.vx) < 0.1) {
-    obj.vx = 0;
-  }
-  if (obj.dvy === 0 && Math.abs(obj.vy) < 0.1) {
-    obj.vy = 0;
-  }
-  obj.x += obj.vx;
-  obj.y += obj.vy;
-}
 
 // ***************Game logic functions******************
 
@@ -168,17 +155,16 @@ function cueBallCueAngle() {
 
 function aimCue() {
   state.cue.position.set(state.pointer.x, state.pointer.y);
-  state.cue.rotation = cueBallCueAngle();
+  const angle = cueBallCueAngle()
+  state.cue.rotation = angle;
+  state.cue.vAngle = angle - Math.PI;
 }
 
 function startCuePush() {
-  const angle = cueBallCueAngle(),
-    distanceFromBall = distance(state.cueBall.x, state.cueBall.y, state.cue.x, state.cue.y),
+  const distanceFromBall = distance(state.cueBall.x, state.cueBall.y, state.cue.x, state.cue.y),
     acceleration = distanceFromBall/100;
-  state.cue.dvx = -Math.cos(angle)*acceleration;
-  state.cue.vx = 0;
-  state.cue.dvy = -Math.sin(angle)*acceleration;
-  state.cue.vy = 0;
+  state.cue.dv = acceleration;
+  state.cue.v = 0;
 }
 
 function updateCuePhysics() {
@@ -186,14 +172,13 @@ function updateCuePhysics() {
     return;
   }
   const angle = cueBallCueAngle(),
-    contactX = Math.cos(angle) * (state.cueBall.width/2) + state.cueBall.x,
-    contactY = Math.sin(angle) * (state.cueBall.width/2) + state.cueBall.y,
-    distanceToContact = distance(state.cue.x, state.cue.y, contactX, contactY),
-    velocity = Math.sqrt(Math.pow(state.cue.vx, 2) + Math.pow(state.cue.vy, 2));
+    contactX = Math.cos(angle) * (state.cueBall.width / 2) + state.cueBall.x,
+    contactY = Math.sin(angle) * (state.cueBall.width / 2) + state.cueBall.y,
+    distanceToContact = distance(state.cue.x, state.cue.y, contactX, contactY);
 
-  if (velocity >= distanceToContact) {
-    state.cueBall.vx = state.cue.vx;
-    state.cueBall.vy = state.cue.vy;
+  if (state.cue.v >= distanceToContact) {
+    state.cueBall.v = state.cue.v;
+    state.cueBall.vAngle = state.cue.vAngle;
     state.cue.x = contactX;
     state.cue.y = contactY;
     stopMoving(state.cue);
