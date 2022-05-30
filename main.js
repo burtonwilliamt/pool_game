@@ -95,6 +95,10 @@ function stopMoving(obj) {
   obj.dvy = 0;
 }
 
+function isMoving(obj) {
+  return (obj.vx !== 0 || obj.vy !== 0 || obj.dvx !== 0 || obj.dvy !== 0);
+}
+
 function createBall(x, y, color) {
   const ball = drawCircle(x, y, 32, color);
   setupObjPhysics(ball);
@@ -134,10 +138,10 @@ function updateObjPhysics(obj) {
 
   obj.vx += obj.dvx + dragX;
   obj.vy += obj.dvy + dragY;
-  if (Math.abs(obj.vx) < 0.01) {
+  if (obj.dvx === 0 && Math.abs(obj.vx) < 0.1) {
     obj.vx = 0;
   }
-  if (Math.abs(obj.vy) < 0.01) {
+  if (obj.dvy === 0 && Math.abs(obj.vy) < 0.1) {
     obj.vy = 0;
   }
   obj.x += obj.vx;
@@ -173,7 +177,7 @@ function aimCue() {
 
 function startCuePush() {
   const angle = cueBallCueAngle(),
-    acceleration = 0.5;
+    acceleration = 0.25;
   state.cue.dvx = -Math.cos(angle)*acceleration;
   state.cue.vx = 0;
   state.cue.dvy = -Math.sin(angle)*acceleration;
@@ -202,10 +206,10 @@ function updatePhysics() {
 // ***************Game Loop functions******************
 function hit(delta) {
   updatePhysics();
-  if (state.cueBall.vx === 0 && state.cueBall.vy === 0) {
+  if (!isMoving(state.cueBall) && !isMoving(state.cue)) {
     state.currentMode = aim;
     state.cue.destroy();
-    state.cue == null;
+    state.cue = null;
   }
 }
 
